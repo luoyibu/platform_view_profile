@@ -1,3 +1,6 @@
+import 'dart:ui';
+import 'dart:developer' as developer;
+
 import 'package:flutter/material.dart';
 import 'uiview.dart';
 
@@ -42,6 +45,19 @@ class _MyHomePageState extends State<MyHomePage> {
     'sdfweg',
   ];
 
+  final lastFrames = List<FrameTiming>();
+
+  var originalCallback;
+
+  @override
+  void initState() {
+    
+    originalCallback = window.onReportTimings;
+    window.onReportTimings = _onReportTimings;
+
+    super.initState();
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -59,6 +75,34 @@ class _MyHomePageState extends State<MyHomePage> {
         ],
       )
     );
+  }
+
+  void _onReportTimings(List<FrameTiming> timings) {
+    
+    if (originalCallback != null) {
+      originalCallback(timings);
+    }
+
+    lastFrames.addAll(timings);
+    var now = timings.last.timestampInMicroseconds(FramePhase.rasterFinish);
+    
+    while (true) {
+      FrameTiming timing = lastFrames.first;
+      if (timing == null) break;
+
+      var start = timing.timestampInMicroseconds(FramePhase.buildStart);
+      if (now - start > 1000 * 1000) {
+        lastFrames.removeAt(0);
+      } else {
+        break;
+      }
+    }
+    var start = lastFrames.first.timestampInMicroseconds(FramePhase.buildStart);
+    var timeDelta = (now - start) / 1000;
+    int fpsAvg = (lastFrames.length * 1000 / timeDelta).round();
+    fpsAvg = fpsAvg > 60 ? 60 : fpsAvg;
+
+    developer.log('avgFps: ' + fpsAvg.toString() + ' avgRange: ' + ((now - start)/1000).toString() + 'ms. frame count: ' + lastFrames.length.toString());
   }
 
   Widget _buildListView(BuildContext context) {
